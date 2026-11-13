@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+christmas_tree_*.png
+.DS_Store
