@@ -11,12 +11,6 @@
   - `S`: 현재 화면 PNG 스크린샷 저장
   - `Esc`: 종료 (Python 실행 시)
 
-## GitHub Pages로 링크 공유하기
-1. 이 폴더(`github_upload`) **안의 파일들**을 GitHub 레포지토리 최상위(root)에 업로드합니다.
-2. 레포지토리의 **Settings → Pages** 로 이동합니다.
-3. **Build and deployment → Source** 를 `Deploy from a branch` 로 선택하고, Branch를 **`main`** / **`/ (root)`** 로 지정한 뒤 **Save** 합니다.
-4. 잠시 후 생성되는 `https://<아이디>.github.io/<레포지토리명>/` 링크로 PC·모바일 어디서나 바로 감상할 수 있습니다.
-
 ## Python으로 로컬 실행하기
 ```bash
 pip install -r requirements.txt
