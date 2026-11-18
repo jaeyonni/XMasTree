@@ -56,7 +56,9 @@
       left: 14px;
       z-index: 10;
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
+      max-width: calc(100% - 110px);
     }
     .ver-btn, .ctrl-btn {
       background: rgba(14, 16, 26, 0.80);
@@ -64,7 +66,7 @@
       border: 1px solid rgba(96, 104, 122, 0.45);
       border-radius: 6px;
       font-family: inherit;
-      font-size: 13px;
+      font-size: 12.5px;
       line-height: 1.2;
       cursor: pointer;
       touch-action: manipulation;
@@ -73,9 +75,10 @@
       transition: all 0.15s ease;
     }
     .ver-btn {
-      min-height: 34px;
-      padding: 6px 14px;
+      min-height: 32px;
+      padding: 5px 11px;
       font-weight: 600;
+      white-space: nowrap;
     }
     .ver-btn:hover, .ctrl-btn:hover {
       color: rgb(206, 214, 232);
@@ -124,7 +127,14 @@
     @media (pointer: coarse), (max-width: 768px) {
       .ver-switch {
         top: 8px;
-        left: 10px;
+        left: 8px;
+        gap: 4px;
+        max-width: calc(100% - 78px);
+      }
+      .ver-btn {
+        min-height: 30px;
+        padding: 4px 8px;
+        font-size: 11px;
       }
       .ctrl-bar {
         bottom: 4px;
@@ -154,9 +164,10 @@
 </head>
 <body>
   <div class="stage">
-    <div class="ver-switch" role="group" aria-label="Tree Version Switcher">
-      <button id="btn-ver1" class="ver-btn active" type="button">ver1</button>
-      <button id="btn-ver2" class="ver-btn" type="button">ver2</button>
+    <div class="ver-switch" role="group" aria-label="Scene Version Switcher">
+      <button id="btn-ver1" class="ver-btn active" type="button">X-Mas Tree</button>
+      <button id="btn-ver2" class="ver-btn" type="button">Lake of Light</button>
+      <button id="btn-ver3" class="ver-btn" type="button">Gwangalli</button>
     </div>
     <canvas id="screen" aria-label="3D Rotating ASCII Christmas Tree"></canvas>
     <div class="ctrl-bar" role="group" aria-label="Playback Controls">
@@ -264,6 +275,21 @@
       const V2_RED = [1.0, 0.30, 0.32];
       const V2_MOON = [0.96, 0.93, 0.80];
       const V2_BARK = [0.62, 0.40, 0.26];
+
+      // ===================== ver3: "Gwangalli Fireworks" (constants) =====================
+      const V3_SEA_Y = 51;
+      const V3_T1 = 26;                 // Gwangan Bridge left main pylon
+      const V3_T2 = 62;                 // Gwangan Bridge right main pylon
+      const V3_DECK_Y = 43;
+      const V3_CYCLE = 15.0;            // curated firework cycle duration (seconds)
+      const V3_T_MSG = 8.5;
+
+      const V3_CHAMPAGNE = [1.00, 0.88, 0.56];
+      const V3_CORAL = [1.00, 0.42, 0.48];
+      const V3_CYAN = [0.46, 0.88, 1.00];
+      const V3_LAVENDER = [0.80, 0.62, 1.00];
+      const V3_AMBER = [1.00, 0.72, 0.26];
+      const V3_SURF = [0.68, 0.84, 0.96];
 
       // Seeded deterministic PRNG (Mulberry32 + Box-Muller)
       function createRng(seed) {
@@ -984,11 +1010,12 @@
       glowCanvas.height = Math.round(H / 5);
       const glowCtx = glowCanvas.getContext("2d");
 
-      const scenes = { 1: buildSceneV1(), 2: buildSceneV2() };
-      const bgs = { 1: buildBackgroundV1(), 2: buildBackgroundV2() };
+      const scenes = { 1: buildSceneV1(), 2: buildSceneV2(), 3: buildSceneV3() };
+      const bgs = { 1: buildBackgroundV1(), 2: buildBackgroundV2(), 3: buildBackgroundV3() };
       const groundCanvases = {
         1: renderGroundCanvas(bgs[1]),
         2: renderGroundCanvas(bgs[2]),
+        3: renderGroundCanvas(bgs[3]),
       };
 
       // Working buffers reused each frame (zero per-frame GC churn)
@@ -1008,6 +1035,7 @@
 
       const btnVer1 = document.getElementById("btn-ver1");
       const btnVer2 = document.getElementById("btn-ver2");
+      const btnVer3 = document.getElementById("btn-ver3");
       const btnPause = document.getElementById("btn-pause");
       const btnRestart = document.getElementById("btn-restart");
       const btnSave = document.getElementById("btn-save");
@@ -1502,12 +1530,429 @@
         return { rotDeg, lights: settled };
       }
 
+      // ===================== ver3: "Gwangalli Beach Fireworks" =====================
+      function v3CableY(c) {
+        if (c >= V3_T1 && c <= V3_T2) {
+          const u = (c - (V3_T1 + V3_T2) * 0.5) / ((V3_T2 - V3_T1) * 0.5);
+          return 41.2 - 11.7 * u * u;
+        }
+        if (c >= 12 && c < V3_T1) {
+          const u = (V3_T1 - c) / (V3_T1 - 12);
+          return 29.5 + 13.5 * Math.pow(u, 0.78);
+        }
+        if (c > V3_T2 && c <= 76) {
+          const u = (c - V3_T2) / (76 - V3_T2);
+          return 29.5 + 13.5 * Math.pow(u, 0.78);
+        }
+        return -1;
+      }
+
+      function buildSceneV3() {
+        const rng = createRng(2027);
+
+        function makeShell(t0, lx, tx, ty, riseDur, burstLife, kind, colA, colB, count, speed, drag, grav) {
+          const pts = [];
+          if (kind === "ring") {
+            const tilt = rng.uniform(-0.35, 0.35);
+            const ct = Math.cos(tilt), st = Math.sin(tilt);
+            for (let i = 0; i < count; i++) {
+              const inner = i >= Math.floor(count * 0.62);
+              const ang = (i / (inner ? count * 0.38 : count * 0.62)) * TAU + rng.normal() * 0.04;
+              const spd = speed * (inner ? 0.58 : 1.0) * rng.uniform(0.95, 1.05);
+              const vx = Math.cos(ang) * spd;
+              const rz = Math.sin(ang) * spd;
+              const vy = rz * st;
+              pts.push({ vx, vy, phase: rng.uniform(0, TAU), col: inner ? colB : colA, jitter: rng.uniform(0.88, 1.08) });
+            }
+          } else {
+            const dirs = fibSphere(count);
+            for (let i = 0; i < dirs.length; i++) {
+              const d = dirs[i];
+              const spd = speed * (kind === "willow" ? rng.uniform(0.72, 1.08) : rng.uniform(0.82, 1.08));
+              const mixCol = i % 3 === 0 ? colB : colA;
+              pts.push({
+                vx: d[0] * spd + rng.normal() * 0.45,
+                vy: d[1] * spd + rng.normal() * 0.45,
+                phase: rng.uniform(0, TAU),
+                col: mixCol,
+                jitter: rng.uniform(0.85, 1.12),
+              });
+            }
+          }
+          return { t0, lx, tx, ty, riseDur, burstLife, kind, colA, colB, drag, grav, pts };
+        }
+
+        // Choreographed 15s Gwangalli fireworks show (balanced, spacious, poetic)
+        const shells = [
+          makeShell(0.7,  44, 43, 17, 1.05, 2.35, "chrysanthemum", V3_CHAMPAGNE, WHITE, 82, 15.5, 1.65, 4.1),
+          makeShell(3.4,  21, 20, 19, 1.00, 2.10, "chrysanthemum", V3_CORAL, V3_CHAMPAGNE, 72, 13.5, 1.70, 4.0),
+          makeShell(3.75, 67, 67, 18, 1.02, 2.00, "ring", V3_CYAN, V3_CHAMPAGNE, 74, 13.0, 1.85, 2.8),
+          makeShell(6.1,  44, 44, 13, 1.18, 3.00, "willow", V3_GOLD_WARM(), V3_AMBER, 76, 14.5, 1.15, 5.4),
+          makeShell(8.9,  29, 28, 16, 0.96, 2.15, "strobe", V3_LAVENDER, WHITE, 66, 13.2, 1.75, 3.3),
+          makeShell(9.25, 59, 60, 17, 0.98, 2.15, "chrysanthemum", V3_AMBER, V3_CORAL, 72, 13.6, 1.68, 4.1),
+        ];
+
+        function V3_GOLD_WARM() {
+          return [1.00, 0.86, 0.42];
+        }
+
+        // Niagara cascade columns along Gwangan Bridge main span (cols 18..70)
+        const niagara = [];
+        for (let c = 18; c <= 70; c++) {
+          if (c >= V3_T1 - 1 && c <= V3_T1 + 1) continue;
+          if (c >= V3_T2 - 1 && c <= V3_T2 + 1) continue;
+          if (rng.random() < 0.72) {
+            niagara.push({
+              c,
+              phase: rng.uniform(0, TAU),
+              speed: rng.uniform(3.4, 5.2),
+              len: rng.uniform(4.2, 6.4),
+            });
+          }
+        }
+
+        return { shells, niagara };
+      }
+
+      function buildBackgroundV3() {
+        const rng = createRng(512);
+        const groundChar = new Int16Array(CELLS);
+        const groundCol = new Float32Array(CELLS * 3);
+
+        function setG(r, c, code, col, b) {
+          if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+          const idx = r * COLS + c;
+          groundChar[idx] = code;
+          groundCol[idx * 3] = col[0] * b;
+          groundCol[idx * 3 + 1] = col[1] * b;
+          groundCol[idx * 3 + 2] = col[2] * b;
+        }
+
+        // Far-left Haeundae / Marine City faint skyline silhouette
+        const bldgs = [
+          [1, 3, 43], [4, 6, 41], [7, 9, 44], [10, 12, 46],
+        ];
+        const skyCol = [0.24, 0.30, 0.48];
+        for (const [c0, c1, topR] of bldgs) {
+          for (let r = topR; r < V3_SEA_Y; r++) {
+            for (let c = c0; c < c1; c++) {
+              setG(r, c, 124, skyCol, 0.14);
+              if (r > topR && r < V3_SEA_Y - 1 && rng.random() < 0.24) {
+                setG(r, c, 46, V3_CHAMPAGNE, 0.26 + rng.random() * 0.14);
+              }
+            }
+          }
+        }
+
+        // Far-right quiet coastal headland ridge
+        for (let c = 77; c < COLS; c++) {
+          const u = (c - 77) / 10;
+          const topR = Math.round(49 - 3.2 * Math.sin(u * Math.PI * 0.85));
+          for (let r = topR; r < V3_SEA_Y; r++) {
+            setG(r, c, r === topR ? 126 : 35, [0.20, 0.28, 0.42], r === topR ? 0.15 : 0.09);
+          }
+        }
+
+        // Gwangan Bridge static steel framework
+        const steelCol = [0.46, 0.58, 0.78];
+        const cableCol = [0.50, 0.64, 0.84];
+
+        // Suspension cables & vertical hangers
+        for (let c = 12; c <= 76; c++) {
+          const cy = v3CableY(c);
+          if (cy < 0) continue;
+          const r = Math.round(cy);
+          const nextY = v3CableY(Math.min(76, c + 1));
+          const slope = nextY >= 0 ? nextY - cy : 0;
+          const code = Math.abs(slope) < 0.32 ? 45 : slope > 0 ? 92 : 47;
+          setG(r, c, code, cableCol, 0.26);
+
+          if (c % 3 === 0 && Math.abs(c - V3_T1) > 1 && Math.abs(c - V3_T2) > 1) {
+            for (let hr = r + 1; hr < V3_DECK_Y; hr++) {
+              setG(hr, c, 124, steelCol, 0.18);
+            }
+          }
+        }
+
+        // Double-deck bridge span (upper + lower girder)
+        for (let c = 10; c <= 78; c++) {
+          const endFade = (c < 14 || c > 74) ? 0.65 : 1.0;
+          setG(V3_DECK_Y, c, 61, steelCol, 0.28 * endFade);
+          setG(V3_DECK_Y + 1, c, 45, steelCol, 0.21 * endFade);
+        }
+
+        // Iconic twin A-frame suspension pylons
+        for (const tc of [V3_T1, V3_T2]) {
+          for (let r = 29; r < V3_SEA_Y; r++) {
+            const wide = r >= 36;
+            const cOffs = wide ? [-1, 1] : [0];
+            for (const off of cOffs) {
+              setG(r, tc + off, 124, steelCol, 0.34);
+            }
+            if (r === 31 || r === 36 || r === 41 || r === 46) {
+              for (let c = tc - 1; c <= tc + 1; c++) {
+                setG(r, c, 61, steelCol, 0.36);
+              }
+            }
+          }
+          setG(29, tc, 94, steelCol, 0.38);
+        }
+
+        // Quiet background stars (sparse so fireworks stay clean)
+        const stars = [];
+        for (let i = 0; i < 62; i++) {
+          const r = Math.floor(rng.uniform(0, 38));
+          const c = Math.floor(rng.uniform(0, COLS));
+          if (groundChar[r * COLS + c] !== 0) continue;
+          stars.push({
+            r,
+            c,
+            b: rng.uniform(0.14, 0.42),
+            ph: rng.uniform(0, TAU),
+            sp: rng.uniform(0.8, 2.2),
+            glyph: rng.random() < 0.7 ? 46 : 43,
+          });
+        }
+
+        // Gwangalli dark sandy beach texture
+        for (let r = 66; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (rng.random() < 0.24) {
+              const b = (0.045 + 0.035 * ((r - 66) / 8)) * (0.7 + 0.6 * rng.random());
+              setG(r, c, rng.random() < 0.78 ? 46 : 45, [0.76, 0.74, 0.66], b);
+            }
+          }
+        }
+
+        return { groundChar, groundCol, stars };
+      }
+
+      function composeV3(nowT) {
+        const sc = scenes[3];
+        const bg = bgs[3];
+        frameChar.set(bg.groundChar);
+        frameCol.set(bg.groundCol);
+
+        // 1. Subtle night stars
+        for (let i = 0; i < bg.stars.length; i++) {
+          const s = bg.stars[i];
+          const idx = s.r * COLS + s.c;
+          if (frameChar[idx] !== 0) continue;
+          const b = s.b * (0.60 + 0.40 * Math.sin(nowT * s.sp + s.ph));
+          frameChar[idx] = s.glyph;
+          frameCol[idx * 3] = b * 0.85;
+          frameCol[idx * 3 + 1] = b * 0.90;
+          frameCol[idx * 3 + 2] = b;
+        }
+
+        // 2. Refined architectural lighting along Gwangan Bridge
+        for (let c = 13; c <= 75; c++) {
+          // Gentle gliding sapphire/champagne wave on main span
+          const wave = 0.5 + 0.5 * Math.sin(c * 0.16 - nowT * 1.15);
+          const cy = v3CableY(c);
+          if (cy >= 0 && c % 2 === 0) {
+            const cr = Math.round(cy);
+            const b = 0.30 + 0.34 * wave;
+            const tint = mix3(V3_CYAN, V3_CHAMPAGNE, wave);
+            putCell(frameChar, frameCol, cr, c, wave > 0.72 ? 42 : 45, tint, b);
+          }
+          if (c >= 14 && c <= 74 && c % 2 === 1) {
+            const db = 0.28 + 0.26 * (0.5 + 0.5 * Math.cos(c * 0.14 + nowT * 0.9));
+            putCell(frameChar, frameCol, V3_DECK_Y, c, 61, V3_CHAMPAGNE, db);
+          }
+        }
+        // Aviation beacons atop both pylons
+        const beacon = 0.35 + 0.55 * Math.pow(0.5 + 0.5 * Math.sin(nowT * 2.4), 3);
+        putCell(frameChar, frameCol, 28, V3_T1, 42, V3_CORAL, beacon);
+        putCell(frameChar, frameCol, 28, V3_T2, 42, V3_CORAL, beacon);
+
+        // 3. Curated Fireworks Show (periodic 15s festival cycle)
+        const lt = nowT % V3_CYCLE;
+        const cyc = Math.floor(nowT / V3_CYCLE);
+        const shiftX = cyc === 0 ? 0 : Math.round(Math.sin(cyc * 2.1) * 4);
+        let activeSparks = 0;
+
+        function paintSpark(row, col, ch, tint, lum) {
+          if (row < 0 || row >= V3_SEA_Y || col < 0 || col >= COLS || lum <= 0.03) return;
+          const idx = row * COLS + col;
+          if (lum > cellMax(frameCol, idx)) {
+            putCell(frameChar, frameCol, row, col, ch, tint, lum);
+          }
+        }
+
+        for (let sIdx = 0; sIdx < sc.shells.length; sIdx++) {
+          const sh = sc.shells[sIdx];
+          const dt = lt - sh.t0;
+          if (dt < 0 || dt >= sh.riseDur + sh.burstLife) continue;
+
+          const tx = clamp(sh.tx + shiftX, 10, COLS - 10);
+          const lx = clamp(sh.lx + shiftX * 0.5, 10, COLS - 10);
+
+          if (dt < sh.riseDur) {
+            // Rocket ascending behind Gwangan Bridge
+            const p = dt / sh.riseDur;
+            const e = 1 - (1 - p) * (1 - p);
+            const rx = lx + (tx - lx) * e;
+            const ry = 44 - (44 - sh.ty) * e;
+            paintSpark(Math.round(ry), Math.round(rx), 64, WHITE, 1.15);
+            activeSparks++;
+            for (let k = 1; k <= 5; k++) {
+              const pPrev = Math.max(0, p - k * 0.055);
+              const ePrev = 1 - (1 - pPrev) * (1 - pPrev);
+              const px = Math.round(lx + (tx - lx) * ePrev);
+              const py = Math.round(44 - (44 - sh.ty) * ePrev);
+              const f = 1 - k / 6;
+              paintSpark(py, px, k < 3 ? 124 : 58, V3_CHAMPAGNE, 0.78 * f);
+            }
+          } else {
+            // Burst phase (exponential air drag + gravity + graceful trails)
+            const bt = dt - sh.riseDur;
+            const life = bt / sh.burstLife;
+            const flash = Math.pow(clamp(1 - bt / 0.24, 0, 1), 2);
+            const nTail = sh.kind === "willow" ? 4 : 3;
+
+            for (let i = 0; i < sh.pts.length; i++) {
+              const pt = sh.pts[i];
+              let aliveCounted = false;
+              for (let k = 0; k < nTail; k++) {
+                const tk = bt - k * (sh.kind === "willow" ? 0.068 : 0.05);
+                if (tk < 0) continue;
+                const dragF = (1 - Math.exp(-sh.drag * tk)) / sh.drag;
+                const sx = tx + (pt.vx * pt.jitter * dragF) / ASPECT;
+                const sy = sh.ty + pt.vy * pt.jitter * dragF + 0.5 * sh.grav * tk * tk;
+                const cx = Math.round(sx);
+                const cy = Math.round(sy);
+                if (cx < 0 || cx >= COLS || cy < 0 || cy >= V3_SEA_Y) continue;
+
+                let lum = (1 - Math.pow(life, 1.65)) * (1 - k * 0.26);
+                if (sh.kind === "strobe" && life > 0.35) {
+                  lum *= 0.35 + 0.85 * Math.max(0, Math.sin(nowT * 18.0 + pt.phase));
+                }
+                if (sh.kind === "willow" && life > 0.45) {
+                  lum *= 0.72 + 0.35 * Math.sin(nowT * 11.0 + pt.phase);
+                }
+                if (lum <= 0.05) continue;
+                if (k === 0 && !aliveCounted) {
+                  activeSparks++;
+                  aliveCounted = true;
+                }
+
+                const tint = k === 0
+                  ? mix3(pt.col, WHITE, flash * 0.85)
+                  : mix3(pt.col, V3_AMBER, 0.35);
+                const ch = k === 0
+                  ? (flash > 0.45 ? 64 : lum > 0.72 ? 42 : lum > 0.42 ? 43 : 46)
+                  : (lum > 0.45 ? 58 : 46);
+                paintSpark(cy, cx, ch, tint, lum * 1.12);
+              }
+            }
+          }
+        }
+
+        // 4. Signature Gwangan Bridge Niagara Waterfall (lt in 10.2 .. 13.0)
+        if (lt >= 10.2 && lt <= 13.0) {
+          const wt = lt - 10.2;
+          const env = wt < 0.4 ? wt / 0.4 : wt > 2.2 ? Math.max(0, (2.8 - wt) / 0.6) : 1.0;
+          for (let i = 0; i < sc.niagara.length; i++) {
+            const colDrop = sc.niagara[i];
+            const dropMax = 4.0 + env * 2.5;
+            for (let s = 0; s < 5; s++) {
+              const fall = ((wt * colDrop.speed + colDrop.phase + s * 1.25) % colDrop.len);
+              if (fall > dropMax) continue;
+              const ry = Math.round(V3_DECK_Y + 1 + fall);
+              if (ry >= V3_SEA_Y) continue;
+              const fade = env * (1 - fall / colDrop.len) * (0.65 + 0.35 * Math.sin(nowT * 14 + s + colDrop.phase));
+              const ch = fall < 1.5 ? 124 : fade > 0.55 ? 42 : 58;
+              const tint = mix3(WHITE, V3_CHAMPAGNE, fall / colDrop.len);
+              paintSpark(ry, colDrop.c, ch, tint, fade);
+              if (s === 0) activeSparks++;
+            }
+          }
+        }
+
+        // 5. Dynamic sea reflections (rows 51..62): mirrors bridge & active fireworks onto ocean waves
+        for (let r = V3_SEA_Y; r < 63; r++) {
+          const k = r - V3_SEA_Y;
+          const srcR = Math.max(8, Math.round(50 - k * 2.9));
+          const shift = Math.round(
+            Math.sin(k * 0.85 + nowT * 2.0) * (0.35 + 0.16 * k) +
+            Math.cos(k * 1.6 - nowT * 2.7) * 0.40
+          );
+          const atten = 0.38 * (1 - k / 15.5);
+          for (let c = 0; c < COLS; c++) {
+            const scCol = c - shift;
+            if (scCol < 0 || scCol >= COLS) continue;
+            // Sample srcR and neighbor row so sparse bursts still shimmer softly on waves
+            let bestR = 0, bestG = 0, bestB = 0, bestM = 0;
+            for (let dr = 0; dr <= 1; dr++) {
+              const sr = Math.min(V3_SEA_Y - 1, srcR + dr);
+              const si = sr * COLS + scCol;
+              if (frameChar[si] < 33) continue;
+              const m = cellMax(frameCol, si);
+              if (m > bestM) {
+                bestM = m;
+                bestR = frameCol[si * 3];
+                bestG = frameCol[si * 3 + 1];
+                bestB = frameCol[si * 3 + 2];
+              }
+            }
+            if (bestM <= 0.14) continue;
+            const waveMod = 0.65 + 0.35 * Math.sin(c * 0.35 + k * 1.4 - nowT * 3.1);
+            const rr = bestR * atten * waveMod;
+            const gg = bestG * atten * waveMod;
+            const bb = Math.min(bestB * atten * 1.10 * waveMod, 1.0);
+            const idx = r * COLS + c;
+            if (Math.max(rr, gg, bb) > cellMax(frameCol, idx)) {
+              const ch = bestM * atten > 0.24 ? 126 : 45; // '~' or '-'
+              frameChar[idx] = ch;
+              frameCol[idx * 3] = rr;
+              frameCol[idx * 3 + 1] = gg;
+              frameCol[idx * 3 + 2] = bb;
+            }
+          }
+        }
+
+        // 6. Gwangalli gentle surf lapping along curved shoreline (rows 62..66)
+        const tide = 0.5 + 0.5 * Math.sin(nowT * 0.9);
+        for (let c = 0; c < COLS; c++) {
+          const shore = 63.8 + 0.85 * Math.sin(c * 0.065 + 0.4) - tide * 1.1;
+          const rFoam = Math.round(shore);
+          if (rFoam >= V3_SEA_Y && rFoam < ROWS) {
+            const shimmer = 0.20 + 0.18 * (0.5 + 0.5 * Math.sin(c * 0.32 - nowT * 1.6));
+            putCell(frameChar, frameCol, rFoam, c, (c + Math.floor(nowT * 2)) % 3 === 0 ? 126 : 45, V3_SURF, shimmer);
+          }
+          if (rFoam + 1 < ROWS && (c % 2 === 0)) {
+            putCell(frameChar, frameCol, rFoam + 1, c, 46, V3_SURF, 0.10 * (1 - tide * 0.5));
+          }
+        }
+
+        // 7. Soft holiday banner on calm Gwangalli beach foreground (row 67, clear above bottom HUD)
+        if (nowT > V3_T_MSG) {
+          const row = ROWS - 7;
+          const x0 = Math.floor((COLS - MESSAGE.length) / 2);
+          for (let i = -1; i <= MESSAGE.length; i++) {
+            const a = clamp((nowT - V3_T_MSG - Math.max(i, 0) * 0.06) / 0.4, 0, 1);
+            if (a <= 0) continue;
+            const x = x0 + i;
+            if (x < 0 || x >= COLS) continue;
+            frameChar[row * COLS + x] = 0;
+            const ch = i >= 0 && i < MESSAGE.length ? MESSAGE[i] : " ";
+            if (ch === " ") continue;
+            const shimmer = 0.76 + 0.24 * Math.sin(i * 0.4 - nowT * 2.4);
+            const col = mix3(V3_CHAMPAGNE, WHITE, 0.25 + 0.25 * Math.sin(i * 0.25 + nowT * 1.6));
+            putCell(frameChar, frameCol, row, x, ch.charCodeAt(0), col, shimmer * a);
+          }
+        }
+
+        const rotDeg = ((nowT * 12.0) % 360 + 360) % 360;
+        return { rotDeg, lights: activeSparks };
+      }
+
       // ===================== Shared drawing =====================
       function renderAndDraw(nowT) {
-        const isV2 = currentVer === 2;
         const bg = bgs[currentVer];
         const groundCanvas = groundCanvases[currentVer];
-        const info = isV2 ? composeV2(nowT) : composeV1(nowT);
+        const info = currentVer === 3 ? composeV3(nowT) : currentVer === 2 ? composeV2(nowT) : composeV1(nowT);
 
         // Blit static ground + batch changed background clears & foreground glyphs onto artCanvas
         artCtx.drawImage(groundCanvas, 0, 0, W, H);
@@ -1574,7 +2019,7 @@
         glowCtx.drawImage(artCanvas, 0, 0, glowCanvas.width, glowCanvas.height);
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
-        ctx.globalAlpha = isV2 ? 120 / 255 : 95 / 255;
+        ctx.globalAlpha = currentVer === 2 ? 120 / 255 : currentVer === 3 ? 110 / 255 : 95 / 255;
         ctx.drawImage(glowCanvas, 0, 0, W, H);
         ctx.restore();
 
@@ -1635,7 +2080,8 @@
         const d = new Date();
         const pad2 = (n) => String(n).padStart(2, "0");
         const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
-        const filename = `christmas_tree_ver${currentVer}_${stamp}.png`;
+        const slugs = ["xmas_tree", "lake_of_light", "gwangalli"];
+        const filename = `${slugs[currentVer - 1]}_${stamp}.png`;
 
         drawCanvasFooter();
         const onBlob = (blob) => {
@@ -1672,10 +2118,11 @@
       }
 
       function setVersion(ver) {
-        if (ver !== 1 && ver !== 2) return;
+        if (ver !== 1 && ver !== 2 && ver !== 3) return;
         currentVer = ver;
         btnVer1.classList.toggle("active", ver === 1);
         btnVer2.classList.toggle("active", ver === 2);
+        btnVer3.classList.toggle("active", ver === 3);
         t = 0.0;
         paused = false;
         lastTs = null;
@@ -1705,6 +2152,7 @@
 
       btnVer1.addEventListener("click", () => setVersion(1));
       btnVer2.addEventListener("click", () => setVersion(2));
+      btnVer3.addEventListener("click", () => setVersion(3));
       btnPause.addEventListener("click", () => triggerAction("pause"));
       btnRestart.addEventListener("click", () => triggerAction("restart"));
       btnSave.addEventListener("click", () => triggerAction("save"));
@@ -1727,15 +2175,20 @@
           setVersion(1);
         } else if (ev.key === "2") {
           setVersion(2);
+        } else if (ev.key === "3") {
+          setVersion(3);
         }
       });
 
-      // Optional deep link: index.html#ver2 opens the new tree directly
-      if (window.location.hash === "#ver2") {
+      // Optional deep link: #ver2 / #ver3 opens that scene directly
+      if (window.location.hash === "#ver2" || window.location.hash === "#lake") {
         currentVer = 2;
-        btnVer1.classList.remove("active");
-        btnVer2.classList.add("active");
+      } else if (window.location.hash === "#ver3" || window.location.hash === "#gwangalli") {
+        currentVer = 3;
       }
+      btnVer1.classList.toggle("active", currentVer === 1);
+      btnVer2.classList.toggle("active", currentVer === 2);
+      btnVer3.classList.toggle("active", currentVer === 3);
 
       function tick(ts) {
         if (lastTs === null) {
