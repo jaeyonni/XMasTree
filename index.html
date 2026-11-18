@@ -650,6 +650,8 @@
       let paused = false;
       let lastTs = null;
       let nextFrame = 0;
+      const CHAR_STR = Array.from({ length: 128 }, (_, i) => String.fromCharCode(i));
+      const FRAME_MS = 1000.0 / 30.0;
 
       function renderAndDraw(nowT) {
         frameChar.set(bg.groundChar);
@@ -817,7 +819,7 @@
               const gc = clamp(Math.round(cg * 255), 0, 255);
               const bc = clamp(Math.round(cb * 255), 0, 255);
               artCtx.fillStyle = `rgb(${rc},${gc},${bc})`;
-              artCtx.fillText(String.fromCharCode(code), c * CW + CW * 0.5, r * CH + CH * 0.5);
+              artCtx.fillText(CHAR_STR[code] || String.fromCharCode(code), c * CW + CW * 0.5, r * CH + CH * 0.5);
             } else if (gCode >= 32) {
               artCtx.fillStyle = SKY_CSS;
               artCtx.fillRect(c * CW, r * CH, CW, CH);
@@ -925,13 +927,18 @@
       });
 
       function tick(ts) {
-        if (lastTs === null) lastTs = ts;
-        const dt = Math.min((ts - lastTs) / 1000.0, 0.1);
+        if (lastTs === null) {
+          lastTs = ts;
+          nextFrame = ts;
+        }
+        const dt = Math.min((ts - lastTs) / 1000.0, 0.25);
         lastTs = ts;
-        if (ts >= nextFrame) {
-          if (!paused) t += dt;
+        if (!paused) t += dt;
+
+        if (ts + 0.5 >= nextFrame) {
           renderAndDraw(t);
-          nextFrame = ts + 1000.0 / 30.0;
+          nextFrame += FRAME_MS;
+          if (nextFrame <= ts) nextFrame = ts + FRAME_MS;
         }
         requestAnimationFrame(tick);
       }

@@ -1,4 +1,5 @@
 __pycache__/
 *.py[cod]
 christmas_tree_*.png
+화면 캡처*.png
 .DS_Store
